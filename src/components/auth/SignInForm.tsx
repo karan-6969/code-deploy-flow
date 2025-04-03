@@ -20,7 +20,7 @@ const SignInForm = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!clerkLoaded) {
+    if (!clerkLoaded || !signIn) {
       toast({
         title: "Error",
         description: "Authentication service not loaded yet. Please try again.",
@@ -43,15 +43,31 @@ const SignInForm = () => {
           description: "Welcome back to TecXi!",
         });
         navigate("/dashboard");
+      } else if (result.status === "needs_second_factor") {
+        // Handle 2FA if needed
+        toast({
+          title: "Two-factor authentication required",
+          description: "Please complete the second authentication step.",
+        });
+        // Navigate to 2FA page if you have one
+      } else if (result.status === "needs_identifier" || result.status === "needs_password") {
+        toast({
+          title: "Incomplete credentials",
+          description: "Please provide both email and password.",
+          variant: "destructive",
+        });
       } else {
-        // Handle 2FA or other flows if needed
-        console.log("Additional authentication steps:", result);
+        console.log("Sign in status:", result.status);
+        toast({
+          title: "Additional steps needed",
+          description: "Please complete all required steps to sign in.",
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in:", error);
       toast({
         title: "Sign in failed",
-        description: "Please check your credentials and try again.",
+        description: error.errors?.[0]?.message || "Please check your credentials and try again.",
         variant: "destructive",
       });
     } finally {
@@ -60,7 +76,7 @@ const SignInForm = () => {
   };
 
   const handleGitHubSignIn = async () => {
-    if (!clerkLoaded) return;
+    if (!clerkLoaded || !signIn) return;
     
     try {
       await signIn.authenticateWithRedirect({
@@ -68,7 +84,7 @@ const SignInForm = () => {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/dashboard",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("GitHub sign in error:", error);
       toast({
         title: "Sign in failed",

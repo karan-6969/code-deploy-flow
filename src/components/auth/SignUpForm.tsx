@@ -7,46 +7,87 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Github } from "lucide-react";
+import { useSignUp } from "@clerk/clerk-react";
 
 const SignUpForm = () => {
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signUp, isLoaded: clerkLoaded } = useSignUp();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!clerkLoaded) {
+      toast({
+        title: "Error",
+        description: "Authentication service not loaded yet. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
-    // Mock registration - to be replaced with real auth
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      toast({
-        title: "Account created",
-        description: "Welcome to TecXi! You are now signed in.",
+    try {
+      const result = await signUp.create({
+        firstName,
+        lastName,
+        emailAddress: email,
+        password,
       });
       
-      navigate("/dashboard");
-    }, 1500);
+      if (result.status === "complete") {
+        toast({
+          title: "Account created",
+          description: "Welcome to TecXi! You are now signed in.",
+        });
+        navigate("/dashboard");
+      } else if (result.status === "needs_email_verification") {
+        // Start the email verification process
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+        
+        toast({
+          title: "Verification needed",
+          description: "We've sent a verification code to your email address.",
+        });
+        
+        // You could navigate to a verification page here
+        navigate("/verify-email");
+      }
+    } catch (error) {
+      console.error("Error signing up:", error);
+      toast({
+        title: "Sign up failed",
+        description: error.errors?.[0]?.message || "Please check your information and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleGitHubSignUp = () => {
-    setIsLoading(true);
+  const handleGitHubSignUp = async () => {
+    if (!clerkLoaded) return;
     
-    // Mock GitHub auth - to be replaced with real OAuth
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      toast({
-        title: "Signed up with GitHub",
-        description: "Your account has been created successfully!",
+    try {
+      await signUp.authenticateWithRedirect({
+        strategy: "oauth_github",
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/dashboard",
       });
-      
-      navigate("/dashboard");
-    }, 1500);
+    } catch (error) {
+      console.error("GitHub sign up error:", error);
+      toast({
+        title: "Sign up failed",
+        description: "Could not sign up with GitHub. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -54,7 +95,7 @@ const SignUpForm = () => {
       <Button 
         variant="outline" 
         type="button" 
-        disabled={isLoading} 
+        disabled={isLoading || !clerkLoaded} 
         className="w-full"
         onClick={handleGitHubSignUp}
       >
@@ -74,16 +115,30 @@ const SignUpForm = () => {
       </div>
       
       <form onSubmit={handleSignUp} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
-          <Input
-            id="name"
-            placeholder="John Doe"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            disabled={isLoading}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName">First name</Label>
+            <Input
+              id="firstName"
+              placeholder="John"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Last name</Label>
+            <Input
+              id="lastName"
+              placeholder="Doe"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
         </div>
         
         <div className="space-y-2">
@@ -114,7 +169,7 @@ const SignUpForm = () => {
           </p>
         </div>
         
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading || !clerkLoaded}>
           {isLoading ? "Creating account..." : "Create account"}
         </Button>
       </form>

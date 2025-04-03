@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Github } from "lucide-react";
+import { useSignIn } from "@clerk/clerk-react";
 
 const SignInForm = () => {
   const [email, setEmail] = useState("");
@@ -14,39 +15,67 @@ const SignInForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signIn, isLoaded: clerkLoaded } = useSignIn();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!clerkLoaded) {
+      toast({
+        title: "Error",
+        description: "Authentication service not loaded yet. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
-    // Mock authentication - to be replaced with real auth
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // For now, we'll just pretend it worked and redirect to dashboard
-      toast({
-        title: "Signed in successfully",
-        description: "Welcome back to TecXi!",
+    try {
+      const result = await signIn.create({
+        identifier: email,
+        password,
       });
       
-      navigate("/dashboard");
-    }, 1500);
+      if (result.status === "complete") {
+        toast({
+          title: "Signed in successfully",
+          description: "Welcome back to TecXi!",
+        });
+        navigate("/dashboard");
+      } else {
+        // Handle 2FA or other flows if needed
+        console.log("Additional authentication steps:", result);
+      }
+    } catch (error) {
+      console.error("Error signing in:", error);
+      toast({
+        title: "Sign in failed",
+        description: "Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleGitHubSignIn = () => {
-    setIsLoading(true);
+  const handleGitHubSignIn = async () => {
+    if (!clerkLoaded) return;
     
-    // Mock GitHub authentication - to be replaced with real OAuth
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      toast({
-        title: "Signed in with GitHub",
-        description: "Welcome back to TecXi!",
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: "oauth_github",
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/dashboard",
       });
-      
-      navigate("/dashboard");
-    }, 1500);
+    } catch (error) {
+      console.error("GitHub sign in error:", error);
+      toast({
+        title: "Sign in failed",
+        description: "Could not sign in with GitHub. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -54,7 +83,7 @@ const SignInForm = () => {
       <Button 
         variant="outline" 
         type="button" 
-        disabled={isLoading} 
+        disabled={isLoading || !clerkLoaded} 
         className="w-full"
         onClick={handleGitHubSignIn}
       >
@@ -90,7 +119,12 @@ const SignInForm = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
-            <Button variant="link" className="px-0 font-normal h-auto" size="sm">
+            <Button
+              variant="link"
+              className="px-0 font-normal h-auto"
+              size="sm"
+              onClick={() => navigate("/reset-password")}
+            >
               Forgot password?
             </Button>
           </div>
@@ -104,7 +138,7 @@ const SignInForm = () => {
           />
         </div>
         
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading || !clerkLoaded}>
           {isLoading ? "Signing in..." : "Sign in"}
         </Button>
       </form>

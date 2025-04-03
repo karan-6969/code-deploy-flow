@@ -49,9 +49,12 @@ const SignUpForm = () => {
         navigate("/dashboard");
       } else {
         // Check if email verification is needed
-        const needsEmailVerification = result.status === "needs_verification";
-        
-        if (needsEmailVerification) {
+        if (result.status === "missing_requirements" || result.status === "abandoned") {
+          toast({
+            title: "Additional steps required",
+            description: "Please complete all requirements to finish signup.",
+          });
+        } else {
           // Start the email verification process
           await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
           

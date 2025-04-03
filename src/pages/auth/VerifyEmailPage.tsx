@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSignUp } from "@clerk/clerk-react";
@@ -92,6 +91,7 @@ const VerifyEmailPage = () => {
     <AuthLayout 
       title="Verify your email"
       subtitle="We've sent a verification code to your email. Enter it below to verify your account."
+      type="signup"
     >
       <form onSubmit={handleVerification} className="space-y-6">
         <div className="space-y-2">

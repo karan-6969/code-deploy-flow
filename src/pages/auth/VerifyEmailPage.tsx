@@ -1,42 +1,43 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
 import { useSignUp } from "@clerk/clerk-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 import AuthLayout from "@/components/auth/AuthLayout";
 
 const VerifyEmailPage = () => {
   const [verificationCode, setVerificationCode] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { signUp, isLoaded } = useSignUp();
+  const [isLoading, setIsLoading] = useState(false);
+  const { signUp, isLoaded: clerkLoaded } = useSignUp();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  if (!isLoaded || !signUp) {
-    return <div>Loading...</div>;
-  }
-
-  // If there's no verification attempt, redirect to signup
-  if (signUp.status !== "needs_email_verification") {
-    navigate("/signup");
-    return null;
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleVerification = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (verificationCode.length !== 6) {
+    if (!clerkLoaded || !signUp) {
       toast({
-        title: "Invalid code",
-        description: "Please enter the 6-digit code sent to your email.",
+        title: "Error",
+        description: "Verification service not loaded yet. Please try again.",
         variant: "destructive",
       });
       return;
     }
     
-    setIsSubmitting(true);
+    // Check if we actually have a sign up attempt in progress
+    if (!signUp.status) {
+      toast({
+        title: "Error",
+        description: "No sign up attempt in progress. Please start the sign up process again.",
+        variant: "destructive",
+      });
+      navigate("/signup");
+      return;
+    }
+    
+    setIsLoading(true);
     
     try {
       const result = await signUp.attemptEmailAddressVerification({
@@ -46,83 +47,87 @@ const VerifyEmailPage = () => {
       if (result.status === "complete") {
         toast({
           title: "Email verified",
-          description: "Your account has been created successfully!",
+          description: "Your account has been created and you are now signed in.",
         });
         navigate("/dashboard");
       } else {
-        console.log("Verification result:", result);
         toast({
           title: "Verification incomplete",
-          description: "Please complete the additional steps required.",
+          description: "There are more steps to complete before your account is active.",
+          variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Verification error:", error);
+      console.error("Error verifying email:", error);
       toast({
         title: "Verification failed",
-        description: error.errors?.[0]?.message || "Please check the code and try again.",
+        description: error.errors?.[0]?.message || "Please check the verification code and try again.",
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   const handleResendCode = async () => {
+    if (!clerkLoaded || !signUp) return;
+    
     try {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       toast({
         title: "Code resent",
-        description: "A new verification code has been sent to your email.",
+        description: "We've sent a new verification code to your email address.",
       });
     } catch (error) {
       console.error("Error resending code:", error);
       toast({
         title: "Failed to resend code",
-        description: "Please try again later.",
+        description: "Please try again or contact support if the problem persists.",
         variant: "destructive",
       });
     }
   };
 
   return (
-    <AuthLayout
+    <AuthLayout 
       title="Verify your email"
-      subtitle="Enter the verification code sent to your email"
-      type="signup"
+      subtitle="We've sent a verification code to your email. Enter it below to verify your account."
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <InputOTP
-              maxLength={6}
-              value={verificationCode}
-              onChange={setVerificationCode}
-              disabled={isSubmitting}
-              render={({ slots }) => (
-                <InputOTPGroup>
-                  {slots.map((slot, index) => (
-                    <InputOTPSlot key={index} {...slot} index={index} />
-                  ))}
-                </InputOTPGroup>
-              )}
-            />
-          </div>
-          
+      <form onSubmit={handleVerification} className="space-y-6">
+        <div className="space-y-2">
+          <Input 
+            placeholder="Verification code"
+            value={verificationCode}
+            onChange={(e) => setVerificationCode(e.target.value)}
+            disabled={isLoading}
+            required
+          />
+        </div>
+        
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Verifying..." : "Verify Email"}
+        </Button>
+        
+        <div className="text-center">
           <Button 
-            type="button" 
             variant="link" 
-            className="px-0 text-sm"
+            type="button" 
             onClick={handleResendCode}
-            disabled={isSubmitting}
+            disabled={isLoading}
           >
-            Didn't receive a code? Resend
+            Didn't receive a code? Click to resend
           </Button>
         </div>
         
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Verifying..." : "Verify email"}
-        </Button>
+        <div className="text-center">
+          <Button
+            variant="link"
+            type="button"
+            onClick={() => navigate("/signup")}
+          >
+            Start over with a different email
+          </Button>
+        </div>
       </form>
     </AuthLayout>
   );

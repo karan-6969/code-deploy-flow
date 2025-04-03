@@ -47,17 +47,22 @@ const SignUpForm = () => {
           description: "Welcome to TecXi! You are now signed in.",
         });
         navigate("/dashboard");
-      } else if (result.status === "needs_email_verification") {
-        // Start the email verification process
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      } else {
+        // Check if email verification is needed
+        const needsEmailVerification = result.status === "needs_verification";
         
-        toast({
-          title: "Verification needed",
-          description: "We've sent a verification code to your email address.",
-        });
-        
-        // You could navigate to a verification page here
-        navigate("/verify-email");
+        if (needsEmailVerification) {
+          // Start the email verification process
+          await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+          
+          toast({
+            title: "Verification needed",
+            description: "We've sent a verification code to your email address.",
+          });
+          
+          // Navigate to verification page
+          navigate("/verify-email");
+        }
       }
     } catch (error) {
       console.error("Error signing up:", error);
